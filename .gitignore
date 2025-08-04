@@ -5,3 +5,7 @@ include
 share
 output/*
 **/__pycache__
+argcomplete
+subprocess
+sys
+.env

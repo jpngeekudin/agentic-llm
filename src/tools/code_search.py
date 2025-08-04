@@ -6,7 +6,7 @@ from langchain_community.document_loaders import TextLoader, DirectoryLoader
 from langchain_community.vectorstores import Chroma
 
 loader = DirectoryLoader(
-    path="/home/fe-mshalahuddin/dev/research/python-research/src",
+    path="/home/fe-mshalahuddin/dev/research/agentic-llm/src",
     glob=["**/*.py"],
     loader_cls=TextLoader,
     show_progress=True,

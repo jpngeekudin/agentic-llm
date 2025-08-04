@@ -1,14 +1,15 @@
 from pydantic import BaseModel
-from langchain_ollama import ChatOllama
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langchain.agents import create_tool_calling_agent, initialize_agent, AgentExecutor, AgentType
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_openai import ChatOpenAI
 from tools.save_to_file import save_tool
-from tools.save_to_project import save_project_tool
-# from tools.code_search import code_search_tool
 import asyncio
+from dotenv import load_dotenv
 import os
+
+load_dotenv()
 
 
 class ResearchResponse(BaseModel):
@@ -30,21 +31,17 @@ async def main():
             # you are an expert software developer that will helping with developing and providing a codes, you will generate a clean code, best practice, and complete clear folder structure, the generated code should be saved on path directory, resulting a valid clean structure project folder, with files like README, package.json, etc, save the project files with provided tools, also please provide the required content, project name, path, and file name when saving file for project, also make sure all the provided props to match the type specified in the tools.
             # """
             """
-            you are a navigator that will helping with geographical time and distance calculation and estimation, you will saving the result into a file using available tools, and also make sure to use arguments and parameters as the tools specified.
+            you are a navigator that will helping with geographical operations, you will response with json format and saving the result into a .json file using available tools, make sure to response as the format specified, also generate the filename for saving the file, and also make sure to use arguments and parameters as the tools specified.
             """
         ),
         ("placeholder", "{chat_history}"),
-        ("human", "{query}"),
+        ("human", "{query} Save the file using available tools"),
         ("placeholder", "{agent_scratchpad}")
     ]).partial(format_instructions=parser.get_format_instructions())
+    llm = ChatOpenAI(model="gpt-4o-mini",
+                     openai_api_key=os.getenv('OPENAI_API_KEY'), verbose=False)
 
-    llm = ChatOllama(model="qwen3", disable_streaming=False)
     client = MultiServerMCPClient({
-        # 'math': {
-        #     "command": "python",
-        #     "transport": "streamable_http",
-        #     "url": "http://localhost:8000/mcp",
-        # },
         "mapbox": {
             "command": "node",
             "transport": "stdio",
@@ -54,27 +51,24 @@ async def main():
             }
         }
     })
-
     mapbox_tools = await client.get_tools()
-
-    # tools = [
-    #     save_tool,
-    #     save_project_tool,
-    #     code_search_tool
-    # ]
 
     agent = create_tool_calling_agent(
         llm=llm,
         prompt=prompt,
-        tools=[save_tool, *mapbox_tools]
+        tools=[*mapbox_tools, save_tool],
     )
 
-    agent_executor = AgentExecutor(agent=agent, tools=mapbox_tools, verbose=True)
-    query = "Please make an analysis of how long and how far if I want to travel from Palmerah Station, Jakarta, Indoneia, to Sudimara Station, Tangerang Selatan, Indonesia"
+    # agent = initialize_agent(
+    #     tools=[*mapbox_tools, save_tool], llm=llm, agent=AgentType.OPENAI_MULTI_FUNCTIONS,)
 
-    for chunk in agent_executor.stream({
-        "query": query
+    agent_executor = AgentExecutor(
+        agent=agent, tools=[*mapbox_tools, save_tool], verbose=True)
+
+    async for chunk in agent_executor.astream({
+        "query": "Based on public transportation schedules, when I should go from 'Alfamart Rawa Belong 2, Palmerah, Indonesia' to 'PT. Indonesia Indicator, Tangerang Selatan, Indonesia' that takes the fastest time."
     }):
-        print(chunk, end="")
+        print(chunk, end="\n")
+
 
 asyncio.run(main())
